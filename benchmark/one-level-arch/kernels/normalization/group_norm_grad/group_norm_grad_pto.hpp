@@ -219,12 +219,16 @@ inline void dx_nc(dtype *dy, dtype *x, dtype *gamma, float *rstd, float *c2_buf,
     TLOAD(c3, gc3);
 
     // Torch 可选 c1 预计算同为 gpu_kernel block=128；此处 c1 = rstd*gamma[c]
+    // TCVT must keep matching logical shapes (PTO 0.58). tile_h Cols=tCap
+    // (fp16→256) while tile_v Cols=128, so convert via tile_f then TROWSUM.
     {
         gm_h gg(gamma + c, 1, 1);
         tile_h hg(1, 1);
+        tile_f gf(1, 1);
         tile_v gv(1);
         TLOAD(hg, gg);
-        TCVT(gv, hg);
+        TCVT(gf, hg);
+        TROWSUM(gv, gf);
         TMUL(c1, gv, rstd_t);
     }
 
