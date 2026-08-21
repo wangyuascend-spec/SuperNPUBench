@@ -21,6 +21,19 @@ B.IOT        t#1, mask=1111, last, ->t<128B>
 
 gfsim 解码成 `TMOV, lb0:1, lb1:1, lb2:1 INVALID`，随后 Deadlock。
 
+## static：Local `updateTile[]` 被 spill 成 `TLOAD/TSTORE S64`
+
+static 模板 gfrun/gfsim 都能跑完，但 clang 没有把 `tile_v updateTile[8]` 留在 tile 寄存器里。
+源码同样只有 `TADD`/`TMULS`，**没有** 对 cache 做 GM/stack 的 TLOAD/TSTORE。
+
+编出来（无 `res_check` ELF，kernel `subi sp, 1536`）：
+
+- merge 循环：`TLOAD, S64` 从栈上读档，`addi a6, 160` 跨档
+- 写档：`TMULS` 之后 `TSTORE, S64` 到 `sp + 224 + cid*160`
+- DIM `16,1,16`（128B），dtype 是 **S64** 不是 FP32
+
+见 `static_tile_spill.diss` / `rms_norm_binary_static.elf`。
+
 ## 复现（本机路径）
 
 ```bash
